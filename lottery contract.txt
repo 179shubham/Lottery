@@ -1,0 +1,68 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+contract Lottery {
+    address payable public manager;
+    address payable[] public participants;
+    uint256 public tokenCost = 10000000000 wei;
+    uint256 public totalTokensCollected;
+    bool public lotteryOpen;
+
+    event WinnerSelected(address winner, uint256 amount);
+    event CoinAdded(address coin);
+    event CoinRemoved(address coin);
+
+    mapping(address => bool) public supportedCoins;
+
+    constructor() {
+        manager = payable(msg.sender);
+        lotteryOpen = true;
+    }
+
+    function enter() external payable {
+        require(msg.value == tokenCost, "You must send exactly 10000000000 wei to participate");
+        require(lotteryOpen, "Lottery is not open for participation");
+        require(participants.length < 2, "Maximum number of participants reached");
+        
+        participants.push(payable(msg.sender));
+        totalTokensCollected += msg.value;
+    }
+
+    function selectWinner() external {
+        require(msg.sender == manager, "Only the manager can select the winner");
+        require(participants.length > 0, "No participants in the lottery");
+        require(lotteryOpen, "Lottery is not open");
+        
+        uint256 winnerAmount = (totalTokensCollected * 8) / 10; // 80% of the total tokens collected
+        uint256 winnerIndex = getRandomNumber() % participants.length;
+        address payable winner = participants[winnerIndex];
+
+        emit WinnerSelected(winner, winnerAmount);
+
+        lotteryOpen = false;
+        totalTokensCollected -= winnerAmount;
+        //winner.transfer(winnerAmount);
+        participants = new address payable[](0);
+        //manager.transfer(address(this).balance); // Transfer the remaining balance to the manager
+    }
+
+    function getRandomNumber() private view returns (uint256) {
+        return uint256(keccak256(abi.encodePacked(block.difficulty, block.timestamp, participants)));
+    }
+
+    function addSupportedCoin(address coin) external {
+        require(msg.sender == manager, "Only the manager can add supported coins");
+        require(!supportedCoins[coin], "Coin is already supported");
+
+        supportedCoins[coin] = true;
+        emit CoinAdded(coin);
+    }
+
+    function removeSupportedCoin(address coin) external {
+        require(msg.sender == manager, "Only the manager can remove supported coins");
+        require(supportedCoins[coin], "Coin is not supported");
+
+        supportedCoins[coin] = false;
+        emit CoinRemoved(coin);
+    }
+}
